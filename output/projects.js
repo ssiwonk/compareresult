@@ -1,0 +1,29 @@
+window.PROJECTS_DATA = [
+  {
+    "id": "1주차_음악치료프로젝트",
+    "title": "1주차_음악치료프로젝트",
+    "url": "projects/1주차_음악치료프로젝트/index.html",
+    "thumbnail": "projects/1주차_음악치료프로젝트/images/1_260828_음악치료프로젝트-1주-원고_v1/slide_001.webp",
+    "updated_at": "2026-08-28 16:53",
+    "files": [
+      {
+        "index": 1,
+        "name": "1_260828_음악치료프로젝트-1주-원고_v1.pdf",
+        "slide_count": 25,
+        "is_base": true
+      },
+      {
+        "index": 2,
+        "name": "2_260828_음악치료프로젝트_1주차_v2-169.pptx",
+        "slide_count": 33,
+        "is_base": false
+      },
+      {
+        "index": 3,
+        "name": "3_260828_음악치료프로젝트_1주-SB최종.pptx",
+        "slide_count": 13,
+        "is_base": false
+      }
+    ]
+  }
+];
