@@ -1,9 +1,15 @@
 """
 Sequence Dynamic Programming Alignment Module.
-Aligns target slides (1..M) to baseline slides (1..N), supporting 1:0, 1:1, 1:2, 1:3, etc. mappings.
+Aligns target slides (1..M) to baseline slides (1..N) by comparing H1 (primary title),
+H2 (secondary title/topic), line overlaps, and token similarity, supporting 1:0, 1:1, 1:2, 1:3 mappings.
 """
 import re
-from collections import Counter
+
+GENERIC_HEADERS = {
+    "unit section", "week 01", "week 02", "week 03", "week 04",
+    "unit 01", "unit 02", "unit 03", "unit 04",
+    "intro", "01", "02", "03", "04", "05", "unit"
+}
 
 def tokenize(text):
     """
@@ -13,10 +19,29 @@ def tokenize(text):
         return []
     return re.findall(r"[a-zA-Z0-9가-힣]+", text.lower())
 
+def clean_line(l):
+    if not l:
+        return ""
+    # Strip bullet symbols, numbering like 1., (1), etc.
+    l = re.sub(r"^[0-9\.\-\(\)\s\u25a0\u25a1\u2590\u25cf\u25cb\u25b6\u25b7]+", "", l)
+    return l.strip().lower()
+
+def extract_primary_titles(lines):
+    """
+    Extracts H1 and H2 by filtering out generic unit/layout banners.
+    """
+    cleaned = [clean_line(l) for l in lines if len(clean_line(l)) >= 2]
+    meaningful = [c for c in cleaned if c not in GENERIC_HEADERS]
+    h1 = meaningful[0] if meaningful else (cleaned[0] if cleaned else "")
+    h2 = meaningful[1] if len(meaningful) > 1 else (cleaned[1] if len(cleaned) > 1 else "")
+    return h1, h2, cleaned
+
 def compute_similarity(base_slide, target_slide_group):
     """
-    Computes a comprehensive similarity score between a base slide and a group of target slides.
+    Computes similarity score comparing H1, H2, line overlap, and token Jaccard.
     """
+    base_lines = base_slide.get("lines", [])
+    b_h1, b_h2, b_cleaned = extract_primary_titles(base_lines)
     base_text = base_slide.get("text", "")
     target_text = "\n".join([s.get("text", "") for s in target_slide_group])
     
@@ -24,45 +49,79 @@ def compute_similarity(base_slide, target_slide_group):
         return 0.5
     if not base_text or not target_text:
         return 0.05
-        
-    # 1. Token-level Jaccard similarity
+
+    target_h1s = []
+    target_h2s = []
+    target_all_meaningful = []
+    for s in target_slide_group:
+        th1, th2, t_cleaned = extract_primary_titles(s.get("lines", []))
+        target_h1s.append(th1)
+        target_h2s.append(th2)
+        target_all_meaningful.extend(t_cleaned)
+
+    # 1. H1 Cross-boundary check: multi-slide group should share the same H1 topic
+    unique_th1s = set([th1 for th1 in target_h1s if th1])
+    if len(unique_th1s) > 1:
+        first = list(unique_th1s)[0]
+        for other in list(unique_th1s)[1:]:
+            if first not in other and other not in first:
+                return -10.0  # Disallow grouping distinct major section slides
+
+    # 2. H2 Cross-boundary check: if slides have distinct H2 sub-topics
+    if len(target_slide_group) > 1:
+        unique_th2_prefixes = set()
+        for th2 in target_h2s:
+            prefix = th2.split(":")[0].strip() if ":" in th2 else th2[:10]
+            if len(prefix) >= 3:
+                unique_th2_prefixes.add(prefix)
+        if len(unique_th2_prefixes) > 1:
+            return -10.0
+
+    # 3. H1 Matching Score
+    h1_score = 0.0
+    for th1 in target_h1s:
+        if b_h1 and th1:
+            if b_h1 == th1:
+                h1_score = max(h1_score, 0.7)
+            elif len(b_h1) >= 4 and (b_h1 in th1 or th1 in b_h1):
+                h1_score = max(h1_score, 0.55)
+            for tline in target_all_meaningful:
+                if b_h1 == tline or (len(b_h1) >= 4 and b_h1 in tline):
+                    h1_score = max(h1_score, 0.45)
+        elif b_h2 and th1:
+            if b_h2 == th1 or (len(b_h2) >= 4 and (b_h2 in th1 or th1 in b_h2)):
+                h1_score = max(h1_score, 0.5)
+
+    # 4. H2 Matching Score
+    h2_score = 0.0
+    if b_h2:
+        for th2 in target_h2s:
+            if b_h2 and th2:
+                b_prefix = b_h2.split(":")[0].strip()
+                if b_h2 in th2 or th2 in b_h2 or (len(b_prefix) >= 4 and b_prefix in th2):
+                    h2_score = max(h2_score, 0.5)
+                elif b_h2 == th2:
+                    h2_score = max(h2_score, 0.5)
+        for tline in target_all_meaningful:
+            if b_h2 == tline or (len(b_h2) >= 4 and (b_h2 in tline or tline in b_h2)):
+                h2_score = max(h2_score, 0.35)
+
+    # 5. Token Jaccard
     tok_base = set(tokenize(base_text))
     tok_target = set(tokenize(target_text))
-    
     jaccard = 0.0
     if tok_base and tok_target:
         intersection = len(tok_base & tok_target)
         union = len(tok_base | tok_target)
         jaccard = intersection / union if union > 0 else 0.0
-        
-    # 2. Title and Line Overlap (high weight)
-    base_lines = [l.strip() for l in base_slide.get("lines", []) if len(l.strip()) >= 2]
-    target_lines = []
-    for s in target_slide_group:
-        target_lines.extend([l.strip() for l in s.get("lines", []) if len(l.strip()) >= 2])
-        
-    line_matches = 0
-    for bl in base_lines:
-        for tl in target_lines:
-            if bl == tl:
-                line_matches += 1.0
-                break
-            elif len(bl) >= 4 and (bl in tl or tl in bl):
-                line_matches += 0.8
-                break
-                
-    line_ratio = line_matches / max(len(base_lines), 1)
-    
-    # 3. First Title Match Bonus
-    title_bonus = 0.0
-    base_title = base_slide.get("title", "").strip()
-    target_first_title = target_slide_group[0].get("title", "").strip() if target_slide_group else ""
-    if base_title and target_first_title:
-        if base_title in target_first_title or target_first_title in base_title:
-            title_bonus = 0.3
-            
-    total_score = (jaccard * 0.3) + (line_ratio * 0.5) + title_bonus
-    return min(1.0, total_score)
+
+    # Group size bonus when matched
+    group_bonus = 0.0
+    if len(target_slide_group) > 1 and (h1_score >= 0.55 or h2_score >= 0.4):
+        group_bonus = 0.15 * (len(target_slide_group) - 1)
+
+    total_score = h1_score + h2_score + (jaccard * 0.3) + group_bonus
+    return max(0.0, min(1.0, total_score))
 
 def align_target_to_base(base_slides, target_slides, max_group_size=4):
     """
@@ -75,13 +134,10 @@ def align_target_to_base(base_slides, target_slides, max_group_size=4):
     if M == 0:
         return [[] for _ in range(N)]
         
-    # dp[i][j]: best score aligning first j target slides to first i base slides
     dp = [[-1e9] * (M + 1) for _ in range(N + 1)]
     parent = [[None] * (M + 1) for _ in range(N + 1)]
     dp[0][0] = 0.0
     
-    # Base slide index: 0..N-1 (DP index 1..N)
-    # Target slide index: 0..M-1 (DP index 1..M)
     for i in range(1, N + 1):
         base_s = base_slides[i - 1]
         for j in range(M + 1):
@@ -96,15 +152,10 @@ def align_target_to_base(base_slides, target_slides, max_group_size=4):
                     continue
                 group = target_slides[k:j]
                 sim = compute_similarity(base_s, group)
+                if sim <= -5.0:
+                    continue
                 
-                # Penalty if assigning multiple slides without reasonable similarity
-                count = j - k
-                group_penalty = 0.05 * (count - 1)
-                
-                # Minimum threshold reward
-                score_gain = sim - group_penalty
-                cand = dp[i - 1][k] + score_gain
-                
+                cand = dp[i - 1][k] + sim
                 if cand > dp[i][j]:
                     dp[i][j] = cand
                     parent[i][j] = (i - 1, k, group)

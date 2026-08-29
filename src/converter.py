@@ -103,7 +103,10 @@ def extract_pptx(pptx_path, output_img_dir, dpi=160):
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         img.save(img_path, "WEBP", quality=85)
         
-        lines = slide_texts[i] if i < len(slide_texts) else []
+        # Extract text & lines directly from rendered page for 100% fidelity
+        page_text = page.get_text().strip()
+        pdf_lines = [line.strip() for line in page_text.split("\n") if line.strip()]
+        lines = pdf_lines if pdf_lines else (slide_texts[i] if i < len(slide_texts) else [])
         text = "\n".join(lines)
         title = lines[0] if lines else f"Slide {slide_num}"
         
