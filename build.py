@@ -75,10 +75,14 @@ def make_safe_slug(name):
     slug = "".join([c if c.isalnum() or c in ("-", "_") else "_" for c in name])
     return slug.strip("_") or "project"
 
-def build_single_project(proj, output_projects_dir, templates_dir):
+def build_single_project(proj, output_projects_dir, templates_dir, clean=True):
     """Builds one comparison viewer project."""
     slug = make_safe_slug(proj["name"])
     proj_out_dir = os.path.join(output_projects_dir, slug)
+    
+    if clean and os.path.exists(proj_out_dir):
+        print(f"[*] Removing existing output directory: {proj_out_dir}")
+        shutil.rmtree(proj_out_dir, ignore_errors=True)
     os.makedirs(proj_out_dir, exist_ok=True)
     
     print("\n" + "-" * 50)
@@ -126,6 +130,7 @@ def main():
     parser.add_argument("--input", default="input", help="Path to input directory")
     parser.add_argument("--output", default="output", help="Path to output directory")
     parser.add_argument("--templates", default="templates", help="Path to templates directory")
+    parser.add_argument("--project", default=None, help="Specific project name/slug to build")
     parser.add_argument("--port", type=int, default=8000, help="Local server port")
     parser.add_argument("--no-serve", action="store_true", help="Do not keep local HTTP server running after build")
     parser.add_argument("--no-open", action="store_true", help="Do not automatically open browser")
@@ -157,11 +162,38 @@ def main():
 
     os.makedirs(output_projects_dir, exist_ok=True)
 
-    # Build all projects
-    projects_meta = []
-    for p in projects:
-        meta = build_single_project(p, output_projects_dir, templates_dir)
-        projects_meta.append(meta)
+    # Build projects
+    if args.project:
+        matched = [p for p in projects if p["name"] == args.project or make_safe_slug(p["name"]) == make_safe_slug(args.project)]
+        if not matched:
+            print(f"[Error] Project '{args.project}' not found in '{input_dir}'.")
+            sys.exit(1)
+        
+        meta_dict = {}
+        meta_file = os.path.join(output_dir, "projects.json")
+        if os.path.exists(meta_file):
+            try:
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    existing_list = json.load(f)
+                    for item in existing_list:
+                        meta_dict[item["id"]] = item
+            except Exception:
+                pass
+
+        for p in matched:
+            meta = build_single_project(p, output_projects_dir, templates_dir, clean=True)
+            meta_dict[meta["id"]] = meta
+
+        projects_meta = []
+        for p in projects:
+            s = make_safe_slug(p["name"])
+            if s in meta_dict:
+                projects_meta.append(meta_dict[s])
+    else:
+        projects_meta = []
+        for p in projects:
+            meta = build_single_project(p, output_projects_dir, templates_dir, clean=True)
+            projects_meta.append(meta)
 
     # Generate Hub Dashboard in output/
     print("\n" + "=" * 60)
