@@ -9,6 +9,32 @@ import pymupdf
 from pptx import Presentation
 from PIL import Image
 
+import re
+
+LAYOUT_IGNORE_PATTERNS = [
+    r"슬라이드명이위치가능한범위",
+    r"상단타이틀디자인범위",
+    r"슬라이드크기",
+    r"슬라이드전체디자인범위",
+    r"학습내용위치가능한범위",
+    r"교수영상이위치하는범위",
+    r"^\s*\(?(너비|높이|좌|우|상|하|슬라이드크기전체)",
+    r"^\s*\d+_\d+_\d+",
+    r"^\s*\\+\s*$",
+    r"^\s*#\d+\s*$"
+]
+
+def is_layout_line(line):
+    if not line:
+        return True
+    for pat in LAYOUT_IGNORE_PATTERNS:
+        if re.search(pat, line):
+            return True
+    return False
+
+def clean_extracted_lines(lines):
+    return [l.strip() for l in lines if l and l.strip() and not is_layout_line(l.strip())]
+
 def extract_pdf(pdf_path, output_img_dir, dpi=160):
     """
     Renders PDF pages as high-resolution images and extracts text.
@@ -30,14 +56,15 @@ def extract_pdf(pdf_path, output_img_dir, dpi=160):
         
         # Extract text & lines
         text = page.get_text().strip()
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
-        title = lines[0] if lines else f"Slide {slide_num}"
+        raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
+        lines = clean_extracted_lines(raw_lines)
+        title = lines[0] if lines else (raw_lines[0] if raw_lines else f"Slide {slide_num}")
         
         slides.append({
             "num": slide_num,
             "title": title,
-            "text": text,
-            "lines": lines,
+            "text": "\n".join(lines) if lines else text,
+            "lines": lines if lines else raw_lines,
             "image": f"images/{os.path.basename(output_img_dir)}/{img_filename}",
             "width": pix.width,
             "height": pix.height
@@ -62,7 +89,7 @@ def extract_pptx(pptx_path, output_img_dir, dpi=160):
             if shape.has_text_frame:
                 for paragraph in shape.text_frame.paragraphs:
                     t = paragraph.text.strip()
-                    if t:
+                    if t and not is_layout_line(t):
                         texts.append(t)
         slide_texts.append(texts)
         
@@ -103,10 +130,13 @@ def extract_pptx(pptx_path, output_img_dir, dpi=160):
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         img.save(img_path, "WEBP", quality=85)
         
-        # Extract text & lines directly from rendered page for 100% fidelity
+        # Extract text & lines directly from rendered page and PPTX shapes
         page_text = page.get_text().strip()
-        pdf_lines = [line.strip() for line in page_text.split("\n") if line.strip()]
-        lines = pdf_lines if pdf_lines else (slide_texts[i] if i < len(slide_texts) else [])
+        pdf_raw = [line.strip() for line in page_text.split("\n") if line.strip()]
+        pdf_lines = clean_extracted_lines(pdf_raw)
+        prs_lines = slide_texts[i] if i < len(slide_texts) else []
+        
+        lines = prs_lines if prs_lines else (pdf_lines if pdf_lines else pdf_raw)
         text = "\n".join(lines)
         title = lines[0] if lines else f"Slide {slide_num}"
         
