@@ -19,6 +19,10 @@ LAYOUT_IGNORE_PATTERNS = [
     r"학습내용위치가능한범위",
     r"교수영상이위치하는범위",
     r"^\s*\(?(너비|높이|좌|우|상|하|슬라이드크기전체)",
+    r"^\s*\(?(좌:\s*\d+|너비:\s*\d+)",
+    r"^\s*과목명\s*주차명",
+    r"^\s*-\s*[ㅁ口xX]\s*[ㅁ口xX]",
+    r"^\s*三[匃국]\s*三",
     r"^\s*\d+_\d+_\d+",
     r"^\s*\\+\s*$",
     r"^\s*#\d+\s*$"
@@ -35,13 +39,42 @@ def is_layout_line(line):
 def clean_extracted_lines(lines):
     return [l.strip() for l in lines if l and l.strip() and not is_layout_line(l.strip())]
 
+def ocr_image(img_path, lang='ko'):
+    try:
+        import asyncio
+        import concurrent.futures
+        import winocr
+        async def _async_call():
+            return await winocr.recognize_pil(Image.open(img_path), lang=lang)
+        def _run():
+            return asyncio.run(_async_call())
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            res = pool.submit(_run).result()
+        return [l.text.strip() for l in res.lines if l.text.strip()]
+    except Exception as e:
+        print(f"    [OCR Warning] OCR recognition failed for {img_path}: {e}")
+        return []
+
 def extract_pdf(pdf_path, output_img_dir, dpi=160):
     """
     Renders PDF pages as high-resolution images and extracts text.
+    If the PDF is rasterized without selectable text, uses native OCR.
     """
     os.makedirs(output_img_dir, exist_ok=True)
     doc = pymupdf.open(pdf_path)
     slides = []
+    
+    # First pass: check if document has meaningful text
+    has_meaningful_text = False
+    for page in doc[:min(5, len(doc))]:
+        t = page.get_text().strip()
+        raw = [line.strip() for line in t.split("\n") if line.strip()]
+        if clean_extracted_lines(raw):
+            has_meaningful_text = True
+            break
+            
+    if not has_meaningful_text:
+        print(f"    [*] {os.path.basename(pdf_path)} has no selectable text stream. Extracting text via OCR...")
     
     for i, page in enumerate(doc):
         slide_num = i + 1
@@ -55,9 +88,15 @@ def extract_pdf(pdf_path, output_img_dir, dpi=160):
         img.save(img_path, "WEBP", quality=85)
         
         # Extract text & lines
-        text = page.get_text().strip()
-        raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
-        lines = clean_extracted_lines(raw_lines)
+        if has_meaningful_text:
+            text = page.get_text().strip()
+            raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
+            lines = clean_extracted_lines(raw_lines)
+        else:
+            raw_lines = ocr_image(img_path, lang='ko')
+            lines = clean_extracted_lines(raw_lines)
+            text = "\n".join(lines)
+            
         title = lines[0] if lines else (raw_lines[0] if raw_lines else f"Slide {slide_num}")
         
         slides.append({

@@ -13,6 +13,10 @@ LAYOUT_IGNORE_PATTERNS = [
     r"학습내용위치가능한범위",
     r"교수영상이위치하는범위",
     r"^\s*\(?(너비|높이|좌|우|상|하|슬라이드크기전체)",
+    r"^\s*\(?(좌:\s*\d+|너비:\s*\d+)",
+    r"^\s*과목명\s*주차명",
+    r"^\s*-\s*[ㅁ口xX]\s*[ㅁ口xX]",
+    r"^\s*三[匃국]\s*三",
     r"^\s*\d+_\d+_\d+",
     r"^\s*\\+\s*$",
     r"^\s*#\d+\s*$"
@@ -43,7 +47,8 @@ def tokenize(text):
 def clean_line(l):
     if not l or is_layout_line(l):
         return ""
-    # Strip bullet symbols, numbering like 1., (1), etc.
+    # Strip window titlebar symbols like - ㅁ x, bullet symbols, numbering like 1., (1), etc.
+    l = re.sub(r"^[-—\s]*[ㅁ口xX]\s*[ㅁ口xX]\s*", "", l)
     l = re.sub(r"^[0-9\.\-\(\)\s\u25a0\u25a1\u2590\u25cf\u25cb\u25b6\u25b7]+", "", l)
     return l.strip().lower()
 
