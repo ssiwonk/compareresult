@@ -476,30 +476,24 @@ body {
 .row-col-cell {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  justify-content: flex-start;
 }
 
 /* Slide Card */
 .slide-card-group {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   width: 100%;
 }
 
-.slide-card-group.count-1 {
-  grid-template-columns: 1fr;
-}
-
-.slide-card-group.count-2 {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.slide-card-group.count-3 {
-  grid-template-columns: repeat(3, 1fr);
-}
-
+.slide-card-group.count-1,
+.slide-card-group.count-2,
+.slide-card-group.count-3,
 .slide-card-group.count-4 {
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
 }
 
 .slide-card {

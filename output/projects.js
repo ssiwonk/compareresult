@@ -4,7 +4,7 @@ window.PROJECTS_DATA = [
     "title": "1주차_음악치료프로젝트",
     "url": "projects/1주차_음악치료프로젝트/index.html",
     "thumbnail": "projects/1주차_음악치료프로젝트/images/1_260828_음악치료프로젝트-1주-원고_v1/slide_001.webp",
-    "updated_at": "2026-08-28 16:53",
+    "updated_at": "2026-08-29 18:35",
     "files": [
       {
         "index": 1,

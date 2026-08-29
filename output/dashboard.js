@@ -49,9 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       card.innerHTML = `
-        <div class="card-thumb-wrapper">
-          <img src="${proj.thumbnail}" alt="${escapeHtml(proj.title)}" loading="lazy">
-          <span class="card-thumb-badge">${proj.files.length}개 파일 비교</span>
+        <div class="card-header-bar">
+          <span class="card-badge">${proj.files.length}개 파일 비교</span>
+          <span class="card-date">${proj.updated_at || '최근 업데이트'}</span>
         </div>
         <div class="card-content">
           <h3 class="card-title">${escapeHtml(proj.title)}</h3>
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ${filesHtml}
           </div>
           <div class="card-footer">
-            <span class="card-date">${proj.updated_at || '최근 업데이트'}</span>
+            <span class="card-stats">총 <strong>${proj.files.reduce((sum, f) => sum + (f.slide_count || 0), 0)}</strong>장</span>
             <span class="btn-open-viewer">
               비교 뷰어 열기
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
