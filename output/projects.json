@@ -79,5 +79,32 @@
         "is_base": false
       }
     ]
+  },
+  {
+    "id": "AI비교-글로벌AI커머스",
+    "title": "AI비교-글로벌AI커머스",
+    "url": "projects/AI비교-글로벌AI커머스/index.html",
+    "thumbnail": "projects/AI비교-글로벌AI커머스/images/원고/slide_001.webp",
+    "updated_at": "2026-09-03 18:51",
+    "files": [
+      {
+        "index": 1,
+        "name": "원고.pdf",
+        "slide_count": 40,
+        "is_base": true
+      },
+      {
+        "index": 2,
+        "name": "제미나이.pptx",
+        "slide_count": 40,
+        "is_base": false
+      },
+      {
+        "index": 3,
+        "name": "클로드.pptx",
+        "slide_count": 41,
+        "is_base": false
+      }
+    ]
   }
 ]
